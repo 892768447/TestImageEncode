@@ -1,0 +1,19 @@
+[package]
+name = "testrust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+criterion = "0.5.1"
+image-qoi = "0.1.1"
+img-qoi = "0.1.0"
+libqoi = "0.3.2"
+qoi = "0.4.1"
+qoi_rs = "0.1.1"
+rapid-qoi = "0.6.1"
+tinyqoi = "0.2.0"
+turbojpeg = "0.5.4"
+zune-image = "0.4.14"
+zune-qoi = "0.4.10"
