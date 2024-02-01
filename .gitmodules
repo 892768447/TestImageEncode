@@ -1,0 +1,15 @@
+[submodule "cpplib/libqoi"]
+	path = cpplib/libqoi
+	url = https://github.com/ShadowMitia/libqoi.git
+[submodule "cpplib/mini-qoi"]
+	path = cpplib/mini-qoi
+	url = https://github.com/shraiwi/mini-qoi.git
+[submodule "cpplib/qoi"]
+	path = cpplib/qoi
+	url = https://github.com/phoboslab/qoi.git
+[submodule "cpplib/qoi-stream"]
+	path = cpplib/qoi-stream
+	url = https://github.com/CaramelFur/qoi-stream.git
+[submodule "cpplib/qoixx"]
+	path = cpplib/qoixx
+	url = https://github.com/wx257osn2/qoixx.git
