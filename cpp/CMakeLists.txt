@@ -20,10 +20,12 @@ else()
 endif()
 
 # set library
-set(LZ4_LIBRARY "lz4")
 if(CMAKE_HOST_WIN32)
+  set(LZ4_LIBRARY "liblz4_static")
   set(JPEG_LIBRARY "turbojpeg-static")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SAFESEH:NO /NODEFAULTLIB:liblz4_static.lib")
 else()
+  set(LZ4_LIBRARY "lz4")
   set(JPEG_LIBRARY "turbojpeg")
 endif()
 
