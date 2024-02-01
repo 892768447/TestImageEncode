@@ -8,3 +8,4 @@ qoi-stream
 qoixx
 cmdline.h
 thread_pool.hpp
+nanobench.h
