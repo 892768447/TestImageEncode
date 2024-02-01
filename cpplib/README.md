@@ -1,0 +1,10 @@
+benchmark
+libjpeg-turbo
+libqoi
+lz4
+mini-qoi
+qoi
+qoi-stream
+qoixx
+cmdline.h
+thread_pool.hpp
