@@ -1,5 +1,5 @@
 [package]
-name = "testrust"
+name = "testimageencode"
 version = "0.1.0"
 edition = "2021"
 
@@ -15,5 +15,7 @@ qoi_rs = "0.1.1"
 rapid-qoi = "0.6.1"
 tinyqoi = "0.2.0"
 turbojpeg = "0.5.4"
+zune-core = "0.4.12"
 zune-image = "0.4.14"
+zune-jpeg = "0.4.11"
 zune-qoi = "0.4.10"

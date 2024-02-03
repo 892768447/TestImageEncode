@@ -70,7 +70,7 @@ static int64_t getCurrentTime() {
 int main(int argc, char* argv[]) {
   // 读取图片内容
   const std::string path =
-      "G:/Workspace/TestImageEncode/images/raws/1920/0_1920_1080.rgb";
+      "/Users/irony/Workspace/QtTest/TestImageEncode/images/raws/3840/0_3840_2160.rgb";
   //   const std::string
   //   path="G:/Workspace/TestImageEncode/images/raws/3840/0_3840_2160.rgb";
   std::ifstream file(path, std::ifstream::binary);
