@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_definitions(-DFMT_HEADER_ONLY)
 
 if(CMAKE_HOST_APPLE)
   set(LZ4_INCLUDE_DIR "/opt/homebrew/Cellar/lz4/1.9.4/include")
@@ -35,9 +37,10 @@ else()
 endif()
 
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../cpplib")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../cpplib/qoixx/include")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../cpplib/fmt/include")
 include_directories(${LZ4_INCLUDE_DIR} ${JPEG_INCLUDE_DIR} ${ZSTD_INCLUDE_DIR})
 link_directories(${LZ4_LIBRARY_DIR} ${JPEG_LIBRARY_DIR} ${ZSTD_LIBRARY_DIR})
 
 add_subdirectory(TestBench)
-# add_subdirectory(TestTurboEncode)
-# add_subdirectory(TestQoiEncode)
+# add_subdirectory(TestTurboEncode) add_subdirectory(TestQoiEncode)
