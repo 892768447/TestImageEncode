@@ -9,6 +9,7 @@
 #include <thread>
 #include <vector>
 
+#include "NumCpp.hpp"
 #include "fmt/core.h"
 #include "lz4.h"
 #include "lz4frame.h"
@@ -26,6 +27,9 @@
 #endif
 
 #undef max
+
+static std::string encBuf;  // 编码输出缓冲区
+static std::string cpsBuf;  // 压缩输出缓冲区
 
 static int64_t getCurrentTime() {
   return std::chrono::duration_cast<std::chrono::microseconds>(
@@ -51,7 +55,114 @@ static std::string getCurrentDirectory() {
   return path.substr(0, pos + 1);
 }
 
-static void test_jpeg(const std::string& image, int width, int height) {
+static void test_lz4(const std::string& image, int width, int height,
+                     const std::string& prefix = "") {
+  std::vector<int> levels = {1, 3, 6, 9, 10, 12};
+
+  int srcSize = image.size();
+  unsigned char* srcData = (unsigned char*)image.c_str();
+  unsigned char* outData = (unsigned char*)encBuf.c_str();
+
+  fmt::println("{}test lz4", prefix);
+  for (int level : levels) {
+    int64_t start = getCurrentTime();
+    int outSize = LZ4_compress_fast((char*)srcData, (char*)outData, srcSize,
+                                    LZ4_compressBound(srcSize), level);
+    int64_t end = getCurrentTime();
+    fmt::println(
+        "{}\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
+        "ratio: {:>6.3f}% \t level: {:>2}",
+        prefix, (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
+        100.0 * (1 - 1.0 * outSize / srcSize), level);
+  }
+}
+
+static void test_lz4_hc(const std::string& image, int width, int height,
+                        const std::string& prefix = "") {
+  std::vector<int> levels = {1, 3, 6, 9, 10, 12};
+
+  int srcSize = image.size();
+
+  unsigned char* srcData = (unsigned char*)image.c_str();
+  unsigned char* outData = (unsigned char*)encBuf.c_str();
+
+  fmt::println("{}test lz4hc", prefix);
+  for (int level : levels) {
+    int64_t start = getCurrentTime();
+    int outSize = LZ4_compress_HC((char*)srcData, (char*)outData, srcSize,
+                                  LZ4_compressBound(srcSize), level);
+    int64_t end = getCurrentTime();
+    fmt::println(
+        "{}\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
+        "ratio: {:>6.3f}% \t level: {:>2}",
+        prefix, (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
+        100.0 * (1 - 1.0 * outSize / srcSize), level);
+  }
+}
+
+static void test_zstd(const std::string& image, int width, int height,
+                      const std::string& prefix = "") {
+  int srcSize = image.size();
+
+  encBuf.resize(ZSTD_compressBound(srcSize));
+  unsigned char* srcData = (unsigned char*)image.c_str();
+  unsigned char* outData = (unsigned char*)encBuf.c_str();
+
+  fmt::println("{}test zstd", prefix);
+  for (int level = 0; level <= ZSTD_maxCLevel(); level++) {
+    int64_t start = getCurrentTime();
+    int outSize = ZSTD_compress(outData, encBuf.size(), srcData, srcSize, 1);
+    int64_t end = getCurrentTime();
+    fmt::println(
+        "{}\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
+        "ratio: {:>6.3f}% \t level: {:>2}",
+        prefix, (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
+        100.0 * (1 - 1.0 * outSize / srcSize), level);
+  }
+}
+
+static void test_zstd_thread(const std::string& image, int width, int height,
+                             const std::string& prefix = "") {
+  return;
+  int srcSize = image.size();
+  int threads = 2;
+
+  encBuf.resize(ZSTD_compressBound(srcSize));
+  unsigned char* srcData = (unsigned char*)image.c_str();
+  unsigned char* outData = (unsigned char*)encBuf.c_str();
+
+  fmt::println("test zstd thread");
+  int level = 19;
+  auto ctx = ZSTD_createCCtx();
+  ZSTD_CCtx_setParameter(ctx, ZSTD_c_nbWorkers, threads);
+  // for (int level = 0; level <= ZSTD_maxCLevel(); level++) {
+  ZSTD_CCtx_setParameter(ctx, ZSTD_c_compressionLevel, level);
+  int64_t start = getCurrentTime();
+  int outSize = ZSTD_compress2(ctx, outData, encBuf.size(), srcData, srcSize);
+  int64_t end = getCurrentTime();
+
+  // if (ZSTD_isError(outSize)) {
+  //   fmt::println(stderr, "ZSTD_compress2 failed: {}",
+  //                ZSTD_getErrorName(outSize));
+  //   continue;
+  // }
+  fmt::println(
+      "\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
+      "ratio: {:>6.3f}% \t level: {:>2} \t threads: {:>2}",
+      (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
+      100.0 * (1 - 1.0 * outSize / srcSize), level, threads);
+  // }
+  ZSTD_freeCCtx(ctx);
+}
+
+static void test_lz4_gpu(const std::string& image, int width, int height,
+                         const std::string& prefix = "") {}
+
+static void test_zstd_gpu(const std::string& image, int width, int height,
+                          const std::string& prefix = "") {}
+
+static void test_jpeg(const std::string& image, int width, int height,
+                      const std::string& prefix = "", bool compress = true) {
   tjhandle handle = tjInitCompress();
   if (!handle) {
     fmt::println(stderr, "tjInitCompress Init failed: {}", tjGetErrorStr());
@@ -62,15 +173,14 @@ static void test_jpeg(const std::string& image, int width, int height) {
   std::vector<int> flags = {TJFLAG_FASTDCT, TJFLAG_ACCURATEDCT};
   std::vector<std::string> flagNames = {"TJFLAG_FASTDCT", "TJFLAG_ACCURATEDCT"};
 
-  std::string outBuf;
-  outBuf.resize(width * height * 4);
+  encBuf.resize(width * height * 4);
   int subsamp = TJSAMP_420;
   int srcSize = image.size();
   unsigned long outSize = 0;
   unsigned char* srcData = (unsigned char*)image.c_str();
-  unsigned char* outData = (unsigned char*)outBuf.c_str();
+  unsigned char* outData = (unsigned char*)encBuf.c_str();
 
-  fmt::println("test jpeg");
+  fmt::println("{}test jpeg", prefix);
   for (int quality : qualitys) {
     for (size_t i = 0; i < flags.size(); i++) {
       int flag = flags[i];
@@ -86,10 +196,16 @@ static void test_jpeg(const std::string& image, int width, int height) {
         continue;
       }
       fmt::println(
-          "\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
+          "{}\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
           "ratio: {:>6.3f}% \t quality: {:>3} \t flag: {:<25}",
-          (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
-          100.0 * outSize / srcSize, quality, name);
+          prefix, (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
+          100.0 * (1 - 1.0 * outSize / srcSize), quality, name);
+
+      if (compress) {
+        const std::string cData = std::string((char*)outData, outSize);
+        test_lz4(cData, width, height, "\t");
+        test_zstd(cData, width, height, "\t");
+      }
     }
   }
 
@@ -98,7 +214,9 @@ static void test_jpeg(const std::string& image, int width, int height) {
   }
 }
 
-static void test_jpeg_yuv(const std::string& image, int width, int height) {
+static void test_jpeg_yuv(const std::string& image, int width, int height,
+                          const std::string& prefix = "",
+                          bool compress = true) {
   tjhandle handle = tjInitCompress();
   if (!handle) {
     fmt::println(stderr, "tjInitCompress Init failed: {}", tjGetErrorStr());
@@ -108,15 +226,14 @@ static void test_jpeg_yuv(const std::string& image, int width, int height) {
   std::vector<int> flags = {TJFLAG_FASTDCT, TJFLAG_ACCURATEDCT};
   std::vector<std::string> flagNames = {"TJFLAG_FASTDCT", "TJFLAG_ACCURATEDCT"};
 
-  std::string outBuf;
   int subsamp = TJSAMP_420;
   int srcSize = image.size();
   unsigned long outSize = tjBufSizeYUV(width, height, subsamp);
-  outBuf.resize(outSize);
+  encBuf.resize(outSize);
   unsigned char* srcData = (unsigned char*)image.c_str();
-  unsigned char* outData = (unsigned char*)outBuf.c_str();
+  unsigned char* outData = (unsigned char*)encBuf.c_str();
 
-  fmt::println("test yuv");
+  fmt::println("{}test yuv", prefix);
   for (size_t i = 0; i < flags.size(); i++) {
     int flag = flags[i];
     std::string name = flagNames[i];
@@ -131,10 +248,16 @@ static void test_jpeg_yuv(const std::string& image, int width, int height) {
       continue;
     }
     fmt::println(
-        "\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
-        "ratio: {:>6.3f}%",
-        (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
-        100.0 * outSize / srcSize);
+        "{}\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
+        "ratio: {:>6.3f}% \t flag: {:<25}",
+        prefix, (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
+        100.0 * (1 - 1.0 * outSize / srcSize), name);
+
+    if (compress) {
+      const std::string cData = std::string((char*)outData, outSize);
+      test_lz4(cData, width, height, "\t");
+      test_zstd(cData, width, height, "\t");
+    }
   }
 
   if (handle) {
@@ -142,7 +265,8 @@ static void test_jpeg_yuv(const std::string& image, int width, int height) {
   }
 }
 
-static void test_qoi(const std::string& image, int width, int height) {
+static void test_qoi(const std::string& image, int width, int height,
+                     const std::string& prefix = "") {
   int srcSize = image.size();
   unsigned char* srcData = (unsigned char*)image.c_str();
 
@@ -152,7 +276,7 @@ static void test_qoi(const std::string& image, int width, int height) {
   desc.channels = 3;
   desc.colorspace = qoixx::qoi::colorspace::srgb;
 
-  fmt::println("test qoi");
+  fmt::println("{}test qoi", prefix);
   int64_t start = getCurrentTime();
   const auto data =
       qoixx::qoi::encode<std::vector<std::byte>>(srcData, srcSize, desc);
@@ -160,113 +284,16 @@ static void test_qoi(const std::string& image, int width, int height) {
   int64_t end = getCurrentTime();
 
   fmt::println(
-      "\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
+      "{}\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
       "ratio: {:>6.3f}%",
-      (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
-      100.0 * outSize / srcSize);
+      prefix, (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
+      100.0 * (1 - 1.0 * outSize / srcSize));
 }
 
-static void test_lz4(const std::string& image, int width, int height) {
-  std::vector<int> levels = {1, 3, 6, 9, 10, 12};
-
-  int srcSize = image.size();
-  std::string outBuf;
-  outBuf.resize(std::max<int>(width * height * 4, LZ4_compressBound(srcSize)));
-  unsigned char* srcData = (unsigned char*)image.c_str();
-  unsigned char* outData = (unsigned char*)outBuf.c_str();
-
-  fmt::println("test lz4");
-  for (int level : levels) {
-    int64_t start = getCurrentTime();
-    int outSize = LZ4_compress_fast((char*)srcData, (char*)outData, srcSize,
-                                    LZ4_compressBound(srcSize), level);
-    int64_t end = getCurrentTime();
-    fmt::println(
-        "\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
-        "ratio: {:>6.3f}% \t level: {:>2}",
-        (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
-        100.0 * outSize / srcSize, level);
-  }
+static void test_numpy_split(const std::string& image, int width, int height,
+                             const std::string& prefix = "") {
+  nc::NdArray array = nc::frombuffer<uint32_t>(image.data(), image.size());
 }
-
-static void test_lz4_hc(const std::string& image, int width, int height) {
-  std::vector<int> levels = {1, 3, 6, 9, 10, 12};
-
-  int srcSize = image.size();
-  std::string outBuf;
-  outBuf.resize(std::max<int>(width * height * 4, LZ4_compressBound(srcSize)));
-  unsigned char* srcData = (unsigned char*)image.c_str();
-  unsigned char* outData = (unsigned char*)outBuf.c_str();
-
-  fmt::println("test lz4hc");
-  for (int level : levels) {
-    int64_t start = getCurrentTime();
-    int outSize = LZ4_compress_HC((char*)srcData, (char*)outData, srcSize,
-                                  LZ4_compressBound(srcSize), level);
-    int64_t end = getCurrentTime();
-    fmt::println(
-        "\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
-        "ratio: {:>6.3f}% \t level: {:>2}",
-        (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
-        100.0 * outSize / srcSize, level);
-  }
-}
-
-static void test_zstd(const std::string& image, int width, int height) {
-  int srcSize = image.size();
-  std::string outBuf;
-  outBuf.resize(ZSTD_compressBound(srcSize));
-  unsigned char* srcData = (unsigned char*)image.c_str();
-  unsigned char* outData = (unsigned char*)outBuf.c_str();
-
-  fmt::println("test zstd");
-  for (int level = 0; level <= ZSTD_maxCLevel(); level++) {
-    int64_t start = getCurrentTime();
-    int outSize = ZSTD_compress(outData, outBuf.size(), srcData, srcSize, 1);
-    int64_t end = getCurrentTime();
-    fmt::println(
-        "\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
-        "ratio: {:>6.3f}% \t level: {:>2}",
-        (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
-        100.0 * outSize / srcSize, level);
-  }
-}
-
-static void test_zstd_thread(const std::string& image, int width, int height) {
-  int srcSize = image.size();
-  int threads = 2;
-  std::string outBuf;
-  outBuf.resize(ZSTD_compressBound(srcSize));
-  unsigned char* srcData = (unsigned char*)image.c_str();
-  unsigned char* outData = (unsigned char*)outBuf.c_str();
-
-  fmt::println("test zstd thread");
-  int level = 19;
-  auto ctx = ZSTD_createCCtx();
-  ZSTD_CCtx_setParameter(ctx, ZSTD_c_nbWorkers, threads);
-  // for (int level = 0; level <= ZSTD_maxCLevel(); level++) {
-  ZSTD_CCtx_setParameter(ctx, ZSTD_c_compressionLevel, level);
-  int64_t start = getCurrentTime();
-  int outSize = ZSTD_compress2(ctx, outData, outBuf.size(), srcData, srcSize);
-  int64_t end = getCurrentTime();
-
-  // if (ZSTD_isError(outSize)) {
-  //   fmt::println(stderr, "ZSTD_compress2 failed: {}",
-  //                ZSTD_getErrorName(outSize));
-  //   continue;
-  // }
-  fmt::println(
-      "\tencode time: {:>10.3f} ms \t ({:^8} kb => {:^8} kb) \t encode "
-      "ratio: {:>6.3f}% \t level: {:>2} \t threads: {:>2}",
-      (end - start) / 1000.0, srcSize / 1024, outSize / 1024,
-      100.0 * outSize / srcSize, level, threads);
-  // }
-  ZSTD_freeCCtx(ctx);
-}
-
-static void test_lz4_gpu(const std::string& image, int width, int height) {}
-
-static void test_zstd_gpu(const std::string& image, int width, int height) {}
 
 int main(int argc, char* argv[]) {
 #ifdef _WIN32
@@ -292,6 +319,10 @@ int main(int argc, char* argv[]) {
     height = std::stoi(argv[3]);
   }
 
+  // 申请缓存
+  encBuf.resize(width * height * 4);
+  cpsBuf.resize(width * height * 4);
+
   // 读取图片内容
   std::ifstream file(path, std::ifstream::binary);
   if (!file.is_open()) {
@@ -306,15 +337,16 @@ int main(int argc, char* argv[]) {
                width, height);
 
   // 测试压缩
-  test_jpeg(image, width, height);
-  test_jpeg_yuv(image, width, height);
-  test_qoi(image, width, height);
   test_lz4(image, width, height);
   test_lz4_hc(image, width, height);
   test_zstd(image, width, height);
   test_zstd_thread(image, width, height);
   test_lz4_gpu(image, width, height);
   test_zstd_gpu(image, width, height);
+  test_jpeg(image, width, height, "", false);
+  test_jpeg_yuv(image, width, height, "", false);
+  test_qoi(image, width, height);
+  test_numpy_split(image, width, height);
 
   return 0;
 }

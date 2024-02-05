@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.5)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+add_definitions(-DNUMCPP_NO_USE_BOOST=OFF)
+add_definitions(-DNUMCPP_USE_MULTITHREAD=ON)
 add_definitions(-DFMT_HEADER_ONLY)
 
 if(CMAKE_HOST_APPLE)
@@ -36,10 +38,14 @@ else()
   set(JPEG_LIBRARY "turbojpeg")
 endif()
 
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../cpplib")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../cpplib/qoixx/include")
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../cpplib/fmt/include")
-include_directories(${LZ4_INCLUDE_DIR} ${JPEG_INCLUDE_DIR} ${ZSTD_INCLUDE_DIR})
+include_directories(
+  "${CMAKE_CURRENT_SOURCE_DIR}/../cpplib"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../cpplib/qoixx/include"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../cpplib/fmt/include"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../cpplib/NumCpp/include"
+  ${LZ4_INCLUDE_DIR}
+  ${JPEG_INCLUDE_DIR}
+  ${ZSTD_INCLUDE_DIR})
 link_directories(${LZ4_LIBRARY_DIR} ${JPEG_LIBRARY_DIR} ${ZSTD_LIBRARY_DIR})
 
 add_subdirectory(TestBench)

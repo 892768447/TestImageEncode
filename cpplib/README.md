@@ -1,11 +1,13 @@
-benchmark
+fmt
 libjpeg-turbo
 libqoi
 lz4
 mini-qoi
+NumCpp
 qoi
 qoi-stream
 qoixx
+zstd
 cmdline.h
-thread_pool.hpp
 nanobench.h
+thread_pool.hpp
