@@ -9,7 +9,6 @@
 #include <thread>
 #include <vector>
 
-#include "NumCpp.hpp"
 #include "fmt/core.h"
 #include "lz4.h"
 #include "lz4frame.h"
@@ -17,6 +16,12 @@
 #include "qoixx.hpp"
 #include "turbojpeg.h"
 #include "zstd.h"
+
+#define XTENSOR_USE_XSIMD 1
+#include "xtensor/xadapt.hpp"
+#include "xtensor/xarray.hpp"
+#include "xtensor/xio.hpp"
+#include "xtensor/xstrided_view.hpp"
 
 #ifdef _WIN32
 #include <direct.h>
@@ -55,12 +60,10 @@ static std::string getCurrentDirectory() {
   return path.substr(0, pos + 1);
 }
 
-static void test_lz4(const std::string& image, int width, int height,
+static void test_lz4(const char* srcData, int srcSize, int width, int height,
                      const std::string& prefix = "") {
   std::vector<int> levels = {1, 3, 6, 9, 10, 12};
 
-  int srcSize = image.size();
-  unsigned char* srcData = (unsigned char*)image.c_str();
   unsigned char* outData = (unsigned char*)encBuf.c_str();
 
   fmt::println("{}test lz4", prefix);
@@ -77,13 +80,10 @@ static void test_lz4(const std::string& image, int width, int height,
   }
 }
 
-static void test_lz4_hc(const std::string& image, int width, int height,
+static void test_lz4_hc(const char* srcData, int srcSize, int width, int height,
                         const std::string& prefix = "") {
   std::vector<int> levels = {1, 3, 6, 9, 10, 12};
 
-  int srcSize = image.size();
-
-  unsigned char* srcData = (unsigned char*)image.c_str();
   unsigned char* outData = (unsigned char*)encBuf.c_str();
 
   fmt::println("{}test lz4hc", prefix);
@@ -100,12 +100,9 @@ static void test_lz4_hc(const std::string& image, int width, int height,
   }
 }
 
-static void test_zstd(const std::string& image, int width, int height,
+static void test_zstd(const char* srcData, int srcSize, int width, int height,
                       const std::string& prefix = "") {
-  int srcSize = image.size();
-
   encBuf.resize(ZSTD_compressBound(srcSize));
-  unsigned char* srcData = (unsigned char*)image.c_str();
   unsigned char* outData = (unsigned char*)encBuf.c_str();
 
   fmt::println("{}test zstd", prefix);
@@ -121,14 +118,11 @@ static void test_zstd(const std::string& image, int width, int height,
   }
 }
 
-static void test_zstd_thread(const std::string& image, int width, int height,
-                             const std::string& prefix = "") {
+static void test_zstd_thread(const char* srcData, int srcSize, int width,
+                             int height, const std::string& prefix = "") {
   return;
-  int srcSize = image.size();
   int threads = 2;
-
   encBuf.resize(ZSTD_compressBound(srcSize));
-  unsigned char* srcData = (unsigned char*)image.c_str();
   unsigned char* outData = (unsigned char*)encBuf.c_str();
 
   fmt::println("test zstd thread");
@@ -155,13 +149,13 @@ static void test_zstd_thread(const std::string& image, int width, int height,
   ZSTD_freeCCtx(ctx);
 }
 
-static void test_lz4_gpu(const std::string& image, int width, int height,
-                         const std::string& prefix = "") {}
+static void test_lz4_gpu(const char* srcData, int srcSize, int width,
+                         int height, const std::string& prefix = "") {}
 
-static void test_zstd_gpu(const std::string& image, int width, int height,
-                          const std::string& prefix = "") {}
+static void test_zstd_gpu(const char* srcData, int srcSize, int width,
+                          int height, const std::string& prefix = "") {}
 
-static void test_jpeg(const std::string& image, int width, int height,
+static void test_jpeg(const char* srcData, int srcSize, int width, int height,
                       const std::string& prefix = "", bool compress = true) {
   tjhandle handle = tjInitCompress();
   if (!handle) {
@@ -175,9 +169,7 @@ static void test_jpeg(const std::string& image, int width, int height,
 
   encBuf.resize(width * height * 4);
   int subsamp = TJSAMP_420;
-  int srcSize = image.size();
   unsigned long outSize = 0;
-  unsigned char* srcData = (unsigned char*)image.c_str();
   unsigned char* outData = (unsigned char*)encBuf.c_str();
 
   fmt::println("{}test jpeg", prefix);
@@ -186,8 +178,9 @@ static void test_jpeg(const std::string& image, int width, int height,
       int flag = flags[i];
       std::string name = flagNames[i];
       int64_t start = getCurrentTime();
-      int ret = tjCompress2(handle, srcData, width, 0, height, TJPF_BGRA,
-                            &outData, &outSize, subsamp, quality, flag);
+      int ret =
+          tjCompress2(handle, (const unsigned char*)srcData, width, 0, height,
+                      TJPF_BGRA, &outData, &outSize, subsamp, quality, flag);
       int64_t end = getCurrentTime();
 
       if (ret != 0) {
@@ -202,9 +195,8 @@ static void test_jpeg(const std::string& image, int width, int height,
           100.0 * (1 - 1.0 * outSize / srcSize), quality, name);
 
       if (compress) {
-        const std::string cData = std::string((char*)outData, outSize);
-        test_lz4(cData, width, height, "\t");
-        test_zstd(cData, width, height, "\t");
+        test_lz4((const char*)outData, outSize, width, height, "\t");
+        test_zstd((const char*)outData, outSize, width, height, "\t");
       }
     }
   }
@@ -214,8 +206,8 @@ static void test_jpeg(const std::string& image, int width, int height,
   }
 }
 
-static void test_jpeg_yuv(const std::string& image, int width, int height,
-                          const std::string& prefix = "",
+static void test_jpeg_yuv(const char* srcData, int srcSize, int width,
+                          int height, const std::string& prefix = "",
                           bool compress = true) {
   tjhandle handle = tjInitCompress();
   if (!handle) {
@@ -227,10 +219,8 @@ static void test_jpeg_yuv(const std::string& image, int width, int height,
   std::vector<std::string> flagNames = {"TJFLAG_FASTDCT", "TJFLAG_ACCURATEDCT"};
 
   int subsamp = TJSAMP_420;
-  int srcSize = image.size();
   unsigned long outSize = tjBufSizeYUV(width, height, subsamp);
   encBuf.resize(outSize);
-  unsigned char* srcData = (unsigned char*)image.c_str();
   unsigned char* outData = (unsigned char*)encBuf.c_str();
 
   fmt::println("{}test yuv", prefix);
@@ -238,8 +228,8 @@ static void test_jpeg_yuv(const std::string& image, int width, int height,
     int flag = flags[i];
     std::string name = flagNames[i];
     int64_t start = getCurrentTime();
-    int ret = ret = tjEncodeYUV2(handle, srcData, width, 0, height, TJPF_BGRA,
-                                 outData, subsamp, flag);
+    int ret = ret = tjEncodeYUV2(handle, (unsigned char*)srcData, width, 0,
+                                 height, TJPF_BGRA, outData, subsamp, flag);
     int64_t end = getCurrentTime();
 
     if (ret != 0) {
@@ -254,9 +244,8 @@ static void test_jpeg_yuv(const std::string& image, int width, int height,
         100.0 * (1 - 1.0 * outSize / srcSize), name);
 
     if (compress) {
-      const std::string cData = std::string((char*)outData, outSize);
-      test_lz4(cData, width, height, "\t");
-      test_zstd(cData, width, height, "\t");
+      test_lz4((const char*)outData, outSize, width, height, "\t");
+      test_zstd((const char*)outData, outSize, width, height, "\t");
     }
   }
 
@@ -265,11 +254,8 @@ static void test_jpeg_yuv(const std::string& image, int width, int height,
   }
 }
 
-static void test_qoi(const std::string& image, int width, int height,
+static void test_qoi(const char* srcData, int srcSize, int width, int height,
                      const std::string& prefix = "") {
-  int srcSize = image.size();
-  unsigned char* srcData = (unsigned char*)image.c_str();
-
   qoixx::qoi::desc desc;
   desc.width = width;
   desc.height = height;
@@ -290,9 +276,52 @@ static void test_qoi(const std::string& image, int width, int height,
       100.0 * (1 - 1.0 * outSize / srcSize));
 }
 
-static void test_numpy_split(const std::string& image, int width, int height,
-                             const std::string& prefix = "") {
-  nc::NdArray array = nc::frombuffer<uint32_t>(image.data(), image.size());
+static void test_xarray(const char* srcData, int srcSize, int width, int height,
+                        const std::string& prefix = "") {
+  int64_t start = getCurrentTime();
+  std::vector<int> shape = {height, width, 4};
+  xt::xarray<uint8_t> a =
+      xt::adapt((const uint8_t*)srcData, srcSize, xt::no_ownership(), shape);
+  fmt::println("{}test xarray", prefix);
+  fmt::println("    init time: {}", (getCurrentTime() - start) / 1000.0);
+
+  // bgra to bgr
+  int64_t time1 = getCurrentTime();
+  auto v2 =
+      xt::strided_view(a, {xt::ellipsis(), xt::range(xt::placeholders::_, -1)});
+  fmt::println("    to rgb time: {}", (getCurrentTime() - time1) / 1000.0);
+
+  // split data
+  /*
+  LU = im[:cy, :cx]  # 左上
+  RU = im[:cy, cx:]  # 右上
+  LD = im[cy:, :cx]  # 左下
+  RD = im[cy:, cx:]  # 右下
+  */
+  int cx = width / 2;
+  int cy = height / 2;
+  time1 = getCurrentTime();
+  auto LU = xt::strided_view(v2, {xt::range(xt::placeholders::_, cy),
+                                  xt::range(xt::placeholders::_, cx)});
+  auto RU = xt::strided_view(v2, {xt::range(xt::placeholders::_, cy),
+                                  xt::range(cx, xt::placeholders::_)});
+  auto LD = xt::strided_view(v2, {xt::range(cy, xt::placeholders::_),
+                                  xt::range(xt::placeholders::_, cx)});
+  auto RD = xt::strided_view(v2, {xt::range(cy, xt::placeholders::_),
+                                  xt::range(cx, xt::placeholders::_)});
+  fmt::println("    split time: {}", (getCurrentTime() - time1) / 1000.0);
+
+  // encode to yuv
+  test_jpeg_yuv((const char*)LU.data(), LU.size(), cx, cy, "\t", false);
+  test_jpeg_yuv((const char*)RU.data(), RU.size(), cx, cy, "\t", false);
+  test_jpeg_yuv((const char*)LD.data(), LD.size(), cx, cy, "\t", false);
+  test_jpeg_yuv((const char*)RD.data(), RD.size(), cx, cy, "\t", false);
+
+  // // encode to jpg
+  test_jpeg((const char*)LU.data(), LU.size(), cx, cy, "\t", false);
+  test_jpeg((const char*)RU.data(), RU.size(), cx, cy, "\t", false);
+  test_jpeg((const char*)LD.data(), LD.size(), cx, cy, "\t", false);
+  test_jpeg((const char*)RD.data(), RD.size(), cx, cy, "\t", false);
 }
 
 int main(int argc, char* argv[]) {
@@ -333,20 +362,22 @@ int main(int argc, char* argv[]) {
   img << file.rdbuf();
   file.close();
   const std::string image = img.str();
-  fmt::println("Input Image size: {}, Width: {}, Height: {}", image.size(),
-               width, height);
+  int imgSize = image.size();
+  const char* imgData = image.c_str();
+  fmt::println("Input Image size: {}, Width: {}, Height: {}", imgSize, width,
+               height);
 
   // 测试压缩
-  test_lz4(image, width, height);
-  test_lz4_hc(image, width, height);
-  test_zstd(image, width, height);
-  test_zstd_thread(image, width, height);
-  test_lz4_gpu(image, width, height);
-  test_zstd_gpu(image, width, height);
-  test_jpeg(image, width, height, "", false);
-  test_jpeg_yuv(image, width, height, "", false);
-  test_qoi(image, width, height);
-  test_numpy_split(image, width, height);
+  // test_lz4(imgData, imgSize, width, height);
+  // test_lz4_hc(imgData, imgSize, width, height);
+  // test_zstd(imgData, imgSize, width, height);
+  // test_zstd_thread(imgData, imgSize, width, height);
+  // test_lz4_gpu(imgData, imgSize, width, height);
+  // test_zstd_gpu(imgData, imgSize, width, height);
+  test_jpeg(imgData, imgSize, width, height, "", false);
+  test_jpeg_yuv(imgData, imgSize, width, height, "", false);
+  // test_qoi(imgData, imgSize, width, height);
+  test_xarray(imgData, imgSize, width, height);
 
   return 0;
 }

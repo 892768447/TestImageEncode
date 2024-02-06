@@ -42,7 +42,7 @@ include_directories(
   "${CMAKE_CURRENT_SOURCE_DIR}/../cpplib"
   "${CMAKE_CURRENT_SOURCE_DIR}/../cpplib/qoixx/include"
   "${CMAKE_CURRENT_SOURCE_DIR}/../cpplib/fmt/include"
-  "${CMAKE_CURRENT_SOURCE_DIR}/../cpplib/NumCpp/include"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../cpplib/xtensor/include"
   ${LZ4_INCLUDE_DIR}
   ${JPEG_INCLUDE_DIR}
   ${ZSTD_INCLUDE_DIR})

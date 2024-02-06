@@ -12,12 +12,12 @@ os.chdir(
 )
 print(os.getcwd())
 
-data = open("3840.bgra", "rb").read()
+data = open("1920.bgra", "rb").read()
 
-img = Image.frombytes("RGBA", (3840, 2160), data, "raw")
+img = Image.frombytes("RGBA", (1920, 1080), data, "raw")
 img = img.convert("RGB")
 start = time.time()
-img.save("3840.jpg", quality=100, subsampling="4:2:0")
+img.save("1920.jpg", quality=100, subsampling="4:2:0")
 print(time.time() - start)
 
 # start = time.time()
@@ -48,7 +48,7 @@ print(time.time() - start)
 
 # print(sb + sg + sr)
 
-w, h = 3840, 2160
+w, h = 1920, 1080
 
 start = time.time()
 i1 = img.crop((0, 0, int(w / 2), int(h / 2)))
@@ -63,17 +63,17 @@ i4.save("3840_4.jpg", quality=100, subsampling="4:2:0")
 print("save split time:", time.time() - start)
 
 
-img = Image.frombytes("RGBA", (3840, 2160), data, "raw")
+img = Image.frombytes("RGBA", (1920, 1080), data, "raw")
 imm = np.array(img)
 print(imm.shape)
 
 
 start = time.time()
-im = np.fromfile("3840.bgra", np.dtype("B"))
+im = np.fromfile("1920.bgra", np.dtype("B"))
 print("numpy fromfile time:", time.time() - start)
 
 t1 = time.time()
-im = im.reshape((2160, 3840, 4))
+im = im.reshape((1080, 1920, 4))
 print("reshape time:", time.time() - t1)
 
 t1 = time.time()
@@ -82,7 +82,7 @@ print("slice time:", time.time() - t1)
 print(im.shape)
 
 # 计算中心点
-center_x, center_y = 3840 // 2, 2160 // 2
+center_x, center_y = 1920 // 2, 1080 // 2
 
 # 切分图像
 t1 = time.time()
@@ -91,6 +91,11 @@ RU = im[:center_y, center_x:]  # 右上
 LD = im[center_y:, :center_x]  # 左下
 RD = im[center_y:, center_x:]  # 右下
 print("split time:", time.time() - t1)
+
+print("LU:", LU)
+print("RU:", RU)
+print("LD:", LD)
+print("RD:", RD)
 
 # 保存切分后的图像
 LU = Image.fromarray(LU, "RGB")
