@@ -92,10 +92,6 @@ LD = im[center_y:, :center_x]  # 左下
 RD = im[center_y:, center_x:]  # 右下
 print("split time:", time.time() - t1)
 
-print("LU:", LU)
-print("RU:", RU)
-print("LD:", LD)
-print("RD:", RD)
 
 # 保存切分后的图像
 LU = Image.fromarray(LU, "RGB")
